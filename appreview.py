@@ -82,18 +82,6 @@ st.markdown(
           border: none !important;
       }}
 
-      /* ✅ Ujisti se, že i HTML copy tlačítko má stejný rozměr jako Streamlit button */
-      .active-btn #copyBtn {{
-          width: 100% !important;
-          height: 3.5em !important;
-          font-weight: bold !important;
-          border-radius: 8px !important;
-          background-color: #28a745 !important;
-          color: white !important;
-          border: none !important;
-          cursor: pointer !important;
-      }}
-
       /* Spacer pro zarovnání copy tlačítka s prompt fieldem */
       .label-spacer {{
           height: {LABEL_OFFSET_PX}px;
@@ -115,7 +103,9 @@ def wrap_div(css_class: str, inner_fn):
 def copy_button_component(text: str):
     """
     Jediné tlačítko 'Zkopírovat prompt' (bez dalších sekcí).
-    Zobrazí malé potvrzení 'Copied' přímo pod tlačítkem.
+    ✅ Tlačítko je nastylované PŘÍMO uvnitř komponenty (iframe),
+    takže má stejné rozměry jako Streamlit tlačítko 'Vygenerovat prompt'.
+    Zobrazí potvrzení 'Copied' pod tlačítkem.
     """
     safe = (
         (text or "")
@@ -127,8 +117,21 @@ def copy_button_component(text: str):
 
     st.components.v1.html(
         f"""
-        <div style="display:flex; flex-direction:column; gap:6px;">
-          <button id="copyBtn">📋 Zkopírovat prompt</button>
+        <div style="display:flex; flex-direction:column; gap:6px; width:100%;">
+          <button id="copyBtn"
+            style="
+              width: 100%;
+              height: 3.5em;        /* STEJNÉ jako Streamlit button */
+              font-weight: 700;     /* bold */
+              border-radius: 8px;   /* STEJNÉ jako Streamlit button */
+              background: #28a745;  /* zelené jako active-btn */
+              color: white;
+              border: none;
+              cursor: pointer;
+            ">
+            📋 Zkopírovat prompt
+          </button>
+
           <div id="copyStatus" style="font-size:12px; min-height:16px; color:#6b7280;"></div>
         </div>
 
@@ -181,7 +184,7 @@ def copy_button_component(text: str):
           }});
         </script>
         """,
-        height=78,
+        height=92,  # aby se vešlo tlačítko (3.5em) + "Copied"
     )
 
 # -----------------------------
@@ -226,7 +229,7 @@ if st.button("Vygenerovat prompt"):
 # Zavření wrapperu tlačítka
 st.markdown("</div>", unsafe_allow_html=True)
 
-# --- 2) PROMPT + COPY (bez dalších sekcí/tlačítek) ---
+# --- 2) PROMPT + COPY ---
 if "p_text" in st.session_state:
     p1, p2 = st.columns(2)
 
@@ -241,14 +244,10 @@ if "p_text" in st.session_state:
     with p2:
         st.markdown('<div class="label-spacer"></div>', unsafe_allow_html=True)
 
-        # Stejný vzhled jako aktivní tlačítka
+        # Zelený wrapper jen pro vizuální konzistenci okolí (neovlivní iframe)
         st.markdown('<div class="active-btn">', unsafe_allow_html=True)
         copy_button_component(st.session_state.p_text)
         st.markdown("</div>", unsafe_allow_html=True)
-
-        # po vygenerování promptu zůstáváme ve step 2; uživatel může pokračovat sám,
-        # nebo se step posune automaticky až po dalším kroku (vložení AI textu)
-        # pokud chceš posun kroku po kopii, dá se udělat jinak, ale bez dalšího tlačítka.
 
 # --- 3) VÝSLEDKY + URL ---
 if st.session_state.step >= 3:
