@@ -6,36 +6,32 @@ import pandas as pd
 # -----------------------------
 APP_TITLE = "🦁 PPC Studio"
 PAGE_TITLE = "PPC Studio"
+
 TEXTAREA_HEIGHT_PX = 120
 LABEL_HEIGHT_PX = 25
 LABEL_MARGIN_BOTTOM_PX = 8
-LABEL_OFFSET_PX = LABEL_HEIGHT_PX + LABEL_MARGIN_BOTTOM_PX  # pro zarovnání tlačítka vpravo
-
+LABEL_OFFSET_PX = LABEL_HEIGHT_PX + LABEL_MARGIN_BOTTOM_PX  # zarovnání tlačítka vpravo
 
 st.set_page_config(layout="wide", page_title=PAGE_TITLE)
 
-
 # -----------------------------
-# CSS (sjednocené, bez duplicit)
+# CSS
 # -----------------------------
 st.markdown(
     f"""
     <style>
-      /* --- Jednotná výška textových polí --- */
+      /* Jednotná výška textových polí */
       .stTextArea textarea {{
           height: {TEXTAREA_HEIGHT_PX}px !important;
           min-height: {TEXTAREA_HEIGHT_PX}px !important;
           max-height: {TEXTAREA_HEIGHT_PX}px !important;
           font-size: 16px !important;
       }}
-
-      /* Nechceme fixovat všechny text_input na 120px (URL by vypadala divně),
-         proto jen normalizace fontu */
       .stTextInput input {{
           font-size: 16px !important;
       }}
 
-      /* --- Srovnání labelů ve sloupcích --- */
+      /* Srovnání labelů ve sloupcích */
       div[data-testid="column"] label {{
           height: {LABEL_HEIGHT_PX}px !important;
           display: flex !important;
@@ -43,27 +39,25 @@ st.markdown(
           margin-bottom: {LABEL_MARGIN_BOTTOM_PX}px !important;
       }}
 
-      /* --- Odstranění červeného focus borderu (Streamlit/BaseWeb) --- */
+      /* Odstranění červeného focus borderu (Streamlit/BaseWeb) */
       .stTextArea textarea:focus,
       .stTextInput input:focus {{
           outline: none !important;
           box-shadow: none !important;
           border: 1px solid #ced4da !important;
       }}
-
       div[data-baseweb="base-input"]:focus-within,
       div[data-baseweb="textarea"]:focus-within {{
           outline: none !important;
           box-shadow: none !important;
           border-color: #ced4da !important;
       }}
-
       div[data-baseweb="base-input"],
       div[data-baseweb="textarea"] {{
           box-shadow: none !important;
       }}
 
-      /* --- Semafor (active step) --- */
+      /* Semafor: aktivní krok */
       .step-active div[data-baseweb="base-input"],
       .step-active div[data-baseweb="textarea"],
       .step-active textarea,
@@ -73,22 +67,7 @@ st.markdown(
           box-shadow: none !important;
       }}
 
-      .step-active textarea:focus,
-      .step-active input:focus {{
-          outline: none !important;
-          box-shadow: none !important;
-          border: 2px solid #28a745 !important;
-      }}
-
-      .step-active div[data-baseweb="base-input"]:focus-within,
-      .step-active div[data-baseweb="textarea"]:focus-within {{
-          outline: none !important;
-          box-shadow: none !important;
-          border-color: #28a745 !important;
-          border-width: 2px !important;
-      }}
-
-      /* --- Tlačítka --- */
+      /* Tlačítka */
       div.stButton > button {{
           width: 100%;
           height: 3.5em;
@@ -101,7 +80,7 @@ st.markdown(
           border: none !important;
       }}
 
-      /* --- Spacer helper (zarovnání tlačítka s label+field) --- */
+      /* Spacer pro zarovnání tlačítka s prompt fieldem */
       .label-spacer {{
           height: {LABEL_OFFSET_PX}px;
       }}
@@ -110,23 +89,69 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-
 # -----------------------------
-# Helper funkce (čistota a méně duplicit)
+# Helpery
 # -----------------------------
 def wrap_div(css_class: str, inner_fn):
-    """Obalí UI prvky do <div class="..."> pro styling (step-active, atd.)."""
+    """Obalí blok do <div class="..."> pro styling."""
     st.markdown(f'<div class="{css_class}">', unsafe_allow_html=True)
     inner_fn()
     st.markdown("</div>", unsafe_allow_html=True)
 
 
 def copy_to_clipboard(text: str):
-    """Bezpečné kopírování textu do clipboard (escapuje backtick)."""
-    safe = (text or "").replace("`", "\\`")
+    """
+    Zkopíruje text do schránky.
+    - Primárně přes navigator.clipboard.writeText (moderní prohlížeče)
+    - Fallback přes hidden textarea + document.execCommand('copy')
+    """
+    # escape pro JS string
+    safe = (text or "").replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
+
     st.components.v1.html(
-        f"<script>navigator.clipboard.writeText(`{safe}`);</script>",
-        height=0
+        f"""
+        <script>
+        (function() {{
+          const text = `{safe}`;
+
+          async function copyModern() {{
+            try {{
+              await navigator.clipboard.writeText(text);
+              return true;
+            }} catch (e) {{
+              return false;
+            }}
+          }}
+
+          function copyFallback() {{
+            try {{
+              const ta = document.createElement('textarea');
+              ta.value = text;
+              ta.setAttribute('readonly', '');
+              ta.style.position = 'fixed';
+              ta.style.top = '0';
+              ta.style.left = '0';
+              ta.style.opacity = '0';
+              document.body.appendChild(ta);
+              ta.focus();
+              ta.select();
+              const ok = document.execCommand('copy');
+              document.body.removeChild(ta);
+              return ok;
+            }} catch (e) {{
+              return false;
+            }}
+          }}
+
+          (async () => {{
+            const okModern = await copyModern();
+            if (!okModern) {{
+              copyFallback();
+            }}
+          }})();
+        </script>
+        """,
+        height=0,
     )
 
 
@@ -142,22 +167,20 @@ if "step" not in st.session_state:
 # --- 1) BRIEF + USPs ---
 c1, c2 = st.columns(2)
 brief_val = st.session_state.get("br", "").strip()
-usps_val = st.session_state.get("usps_in", "").strip()
 
 with c1:
-    wrap_div("step-active" if not brief_val else "", lambda: st.text_area(
-        "Vložte brief nebo obsah stránky",
-        key="br"
-    ))
+    wrap_div(
+        "step-active" if not brief_val else "",
+        lambda: st.text_area("Vložte brief nebo obsah stránky", key="br"),
+    )
 
 with c2:
-    # Stejná DOM struktura jako vlevo (wrap_div), ať je to pixel-perfect zarovnané
-    wrap_div("", lambda: st.text_area(
-        "USPs (volitelné)",
-        key="usps_in"
-    ))
+    wrap_div(
+        "",
+        lambda: st.text_area("USPs (volitelné)", key="usps_in"),
+    )
 
-# Tlačítko pro generování promptu (aktivní jen v kroku 1 a s vyplněným briefem)
+# Generování promptu
 can_generate = (brief_val != "") and (st.session_state.step == 1)
 wrap_div("active-btn" if can_generate else "", lambda: None)
 
@@ -172,7 +195,8 @@ if st.button("Vygenerovat prompt"):
         st.session_state.step = 2
         st.rerun()
 
-st.markdown("</div>", unsafe_allow_html=True)  # zavření wrapperu tlačítka
+# zavři wrapper tlačítka "Vygenerovat prompt"
+st.markdown("</div>", unsafe_allow_html=True)
 
 # --- 2) PROMPT + COPY ---
 if "p_text" in st.session_state:
@@ -183,11 +207,11 @@ if "p_text" in st.session_state:
             "Prompt (zkopírujte do AI)",
             value=st.session_state.p_text,
             key="prompt_display",
-            disabled=True
+            disabled=True,
         )
 
     with p2:
-        # zarovnání tlačítka s horní hranou pole (label + margin)
+        # Zarovnat tlačítko s horní hranou prompt pole (label + margin)
         st.markdown('<div class="label-spacer"></div>', unsafe_allow_html=True)
 
         btn_active = "active-btn" if st.session_state.step == 2 else ""
@@ -195,10 +219,12 @@ if "p_text" in st.session_state:
 
         if st.button("📋 Zkopírovat prompt"):
             copy_to_clipboard(st.session_state.p_text)
+            st.toast("✅ Prompt zkopírován do schránky", icon="📋")
             st.session_state.step = 3
             st.rerun()
 
-        st.markdown("</div>", unsafe_allow_html=True)  # zavření wrapperu tlačítka
+        # zavři wrapper tlačítka "Zkopírovat prompt"
+        st.markdown("</div>", unsafe_allow_html=True)
 
 # --- 3) VÝSLEDKY + URL ---
 if st.session_state.step >= 3:
@@ -207,17 +233,15 @@ if st.session_state.step >= 3:
     ai_val = st.session_state.get("ai_in", "").strip()
     url_val = st.session_state.get("url_in", "").strip()
 
-    wrap_div("step-active" if not ai_val else "", lambda: st.text_area(
-        "Sem vložte vygenerované inzeráty",
-        key="ai_in"
-    ))
+    wrap_div(
+        "step-active" if not ai_val else "",
+        lambda: st.text_area("Sem vložte vygenerované inzeráty", key="ai_in"),
+    )
 
-    # URL zvýraznit zeleně jen pokud už jsou inzeráty vložené, ale URL chybí
-    wrap_div("step-active" if (ai_val and not url_val) else "", lambda: st.text_input(
-        "URL webu (Povinné)",
-        placeholder="https://www.priklad.cz",
-        key="url_in"
-    ))
+    wrap_div(
+        "step-active" if (ai_val and not url_val) else "",
+        lambda: st.text_input("URL webu (Povinné)", placeholder="https://www.priklad.cz", key="url_in"),
+    )
 
     if ai_val and not url_val:
         st.warning("⚠️ Zbývá poslední krok: Vyplňte URL webu.")
@@ -232,7 +256,8 @@ if st.session_state.step >= 3:
             st.session_state.step = 4
             st.rerun()
 
-        st.markdown("</div>", unsafe_allow_html=True)  # zavření wrapperu tlačítka
+        # zavři wrapper tlačítka "Zpracovat"
+        st.markdown("</div>", unsafe_allow_html=True)
 
 # --- 4) FINÁLNÍ TABULKA ---
 if st.session_state.get("step") == 4 and "df_final" in st.session_state:
@@ -241,6 +266,6 @@ if st.session_state.get("step") == 4 and "df_final" in st.session_state:
 
     df["Zbývá"] = df.apply(
         lambda r: (30 if r["Typ"] == "Nadpis" else 90) - len(str(r["Text"])),
-        axis=1
+        axis=1,
     )
     st.data_editor(df, use_container_width=True, hide_index=True)
