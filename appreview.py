@@ -10,9 +10,7 @@ PAGE_TITLE = "PPC Studio"
 TEXTAREA_HEIGHT_PX = 120
 LABEL_HEIGHT_PX = 25
 LABEL_MARGIN_BOTTOM_PX = 8
-LABEL_OFFSET_PX = LABEL_HEIGHT_PX + LABEL_MARGIN_BOTTOM_PX  # zarovnání tlačítka vpravo
-
-SHOW_CODE_COPY_FALLBACK = True  # když True, zobrazí se i st.code s vestavěným kopírováním
+LABEL_OFFSET_PX = LABEL_HEIGHT_PX + LABEL_MARGIN_BOTTOM_PX
 
 st.set_page_config(layout="wide", page_title=PAGE_TITLE)
 
@@ -69,20 +67,34 @@ st.markdown(
           box-shadow: none !important;
       }}
 
-      /* Tlačítka */
+      /* Tlačítka (původní Streamlit styl) */
       div.stButton > button {{
           width: 100%;
           height: 3.5em;
           font-weight: bold;
           border-radius: 8px;
       }}
+
+      /* "Active" zelené tlačítko */
       .active-btn button {{
           background-color: #28a745 !important;
           color: white !important;
           border: none !important;
       }}
 
-      /* Spacer pro zarovnání tlačítka s prompt fieldem */
+      /* ✅ Ujisti se, že i HTML copy tlačítko má stejný rozměr jako Streamlit button */
+      .active-btn #copyBtn {{
+          width: 100% !important;
+          height: 3.5em !important;
+          font-weight: bold !important;
+          border-radius: 8px !important;
+          background-color: #28a745 !important;
+          color: white !important;
+          border: none !important;
+          cursor: pointer !important;
+      }}
+
+      /* Spacer pro zarovnání copy tlačítka s prompt fieldem */
       .label-spacer {{
           height: {LABEL_OFFSET_PX}px;
       }}
@@ -95,18 +107,16 @@ st.markdown(
 # Helpery
 # -----------------------------
 def wrap_div(css_class: str, inner_fn):
-    """Obalí blok do <div class="..."> pro styling."""
     st.markdown(f'<div class="{css_class}">', unsafe_allow_html=True)
     inner_fn()
     st.markdown("</div>", unsafe_allow_html=True)
 
 
-def copy_component(text: str):
+def copy_button_component(text: str):
     """
-    Vykreslí HTML komponent s vlastním tlačítkem, které kopíruje přímo v JS (user gesture).
-    Zobrazí "Copied" nebo chybu přímo u tlačítka.
+    Jediné tlačítko 'Zkopírovat prompt' (bez dalších sekcí).
+    Zobrazí malé potvrzení 'Copied' přímo pod tlačítkem.
     """
-    # Escape pro vložení do JS stringu (bezpečně)
     safe = (
         (text or "")
         .replace("\\", "\\\\")
@@ -117,20 +127,9 @@ def copy_component(text: str):
 
     st.components.v1.html(
         f"""
-        <div style="display:flex; flex-direction:column; gap:8px; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;">
-          <button id="copyBtn"
-                  style="
-                    width:100%;
-                    height:3.5em;
-                    font-weight:700;
-                    border-radius:8px;
-                    border:1px solid #d0d7de;
-                    background:#ffffff;
-                    cursor:pointer;
-                  ">
-            📋 Zkopírovat prompt
-          </button>
-          <div id="copyStatus" style="font-size:12px; color:#6b7280; min-height:16px;"></div>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <button id="copyBtn">📋 Zkopírovat prompt</button>
+          <div id="copyStatus" style="font-size:12px; min-height:16px; color:#6b7280;"></div>
         </div>
 
         <script>
@@ -173,18 +172,16 @@ def copy_component(text: str):
             const ok = okModern || copyFallback();
 
             if (ok) {{
-              status.textContent = "Copied ✅";
+              status.textContent = "Copied";
               status.style.color = "#16a34a";
-              btn.style.borderColor = "#16a34a";
             }} else {{
-              status.textContent = "Copy failed ❌ (zkuste Ctrl+C)";
+              status.textContent = "Copy failed";
               status.style.color = "#dc2626";
-              btn.style.borderColor = "#dc2626";
             }}
           }});
         </script>
         """,
-        height=90,
+        height=78,
     )
 
 # -----------------------------
@@ -192,7 +189,6 @@ def copy_component(text: str):
 # -----------------------------
 st.title(APP_TITLE)
 
-# Stav aplikace
 if "step" not in st.session_state:
     st.session_state.step = 1
 
@@ -227,10 +223,10 @@ if st.button("Vygenerovat prompt"):
         st.session_state.step = 2
         st.rerun()
 
-# zavři wrapper tlačítka "Vygenerovat prompt"
+# Zavření wrapperu tlačítka
 st.markdown("</div>", unsafe_allow_html=True)
 
-# --- 2) PROMPT + COPY ---
+# --- 2) PROMPT + COPY (bez dalších sekcí/tlačítek) ---
 if "p_text" in st.session_state:
     p1, p2 = st.columns(2)
 
@@ -242,23 +238,17 @@ if "p_text" in st.session_state:
             disabled=True,
         )
 
-        # Volitelný fallback: často má vestavěné kopírování
-        if SHOW_CODE_COPY_FALLBACK:
-            st.caption("Alternativní kopie (fallback):")
-            st.code(st.session_state.p_text, language="text")
-
     with p2:
         st.markdown('<div class="label-spacer"></div>', unsafe_allow_html=True)
 
-        # ✅ Nejspolehlivější: kopírovací komponent s vlastním tlačítkem + „Copied“
-        copy_component(st.session_state.p_text)
+        # Stejný vzhled jako aktivní tlačítka
+        st.markdown('<div class="active-btn">', unsafe_allow_html=True)
+        copy_button_component(st.session_state.p_text)
+        st.markdown("</div>", unsafe_allow_html=True)
 
-        # Pokud chceš stále posouvat kroky po kopírování, nechám tu malé tlačítko:
-        # (kopírování provádí komponent; tohle jen posune UI dál)
-        if st.button("➡️ Pokračovat"):
-            st.toast("Copied", icon="✅")
-            st.session_state.step = 3
-            st.rerun()
+        # po vygenerování promptu zůstáváme ve step 2; uživatel může pokračovat sám,
+        # nebo se step posune automaticky až po dalším kroku (vložení AI textu)
+        # pokud chceš posun kroku po kopii, dá se udělat jinak, ale bez dalšího tlačítka.
 
 # --- 3) VÝSLEDKY + URL ---
 if st.session_state.step >= 3:
