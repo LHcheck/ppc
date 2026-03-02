@@ -67,15 +67,15 @@ st.markdown(
           box-shadow: none !important;
       }}
 
-      /* Streamlit tlačítka */
+      /* Streamlit tlačítka – NEVYNUCUJEME width:100% (aby byla přirozeně úzká) */
       div.stButton > button {{
-          width: 100%;
           height: 3.5em;
-          font-weight: bold;
+          font-weight: 700;
           border-radius: 8px;
+          padding: 0 14px;  /* podobné jako default */
       }}
 
-      /* Aktivní zelené tlačítko (jen pro Vygenerovat/Zpracovat) */
+      /* Aktivní zelené tlačítko (jen pro tlačítka, která obaluješ .active-btn) */
       .active-btn button {{
           background-color: #28a745 !important;
           color: white !important;
@@ -115,26 +115,31 @@ def _js_escape_template_literal(s: str) -> str:
 def copy_button_component(text: str):
     """
     Bílé tlačítko Zkopírovat prompt:
-    - stejné rozměry jako Streamlit button (width 100%, height 3.5em)
-    - stejný "default" vzhled (bílé, šedý okraj)
-    - kopírování běží v HTML komponentě (user gesture)
-    - malá hláška "Copied" pod tlačítkem
+    - šířka AUTO (ne 100%) => bude podobně úzké jako Streamlit 'Vygenerovat prompt'
+    - výška 3.5em, radius 8px, bold
+    - kopírování funguje v iframe (user gesture)
+    - malé potvrzení 'Copied' pod tlačítkem
     """
     safe = _js_escape_template_literal(text)
 
     st.components.v1.html(
         f"""
-        <div style="display:flex; flex-direction:column; gap:6px; width:100%;">
+        <div style="display:flex; flex-direction:column; gap:6px; width:100%; align-items:flex-start;">
           <button id="copyBtn"
             style="
-              width: 100%;
-              height: 3.5em;
+              width: auto;                /* ✅ auto šířka */
+              height: 3.5em;              /* stejná výška jako Streamlit */
               font-weight: 700;
               border-radius: 8px;
-              background: #ffffff;
+              background: #ffffff;        /* bílé */
               color: inherit;
               border: 1px solid #d0d7de;
+              padding: 0 14px;            /* stejné „tělo“ jako Streamlit */
               cursor: pointer;
+              display: inline-flex;
+              align-items: center;
+              justify-content: center;
+              white-space: nowrap;
             ">
             📋 Zkopírovat prompt
           </button>
@@ -194,7 +199,6 @@ def copy_button_component(text: str):
         height=92,
     )
 
-
 # -----------------------------
 # UI
 # -----------------------------
@@ -248,7 +252,6 @@ if "p_text" in st.session_state:
 
     with p2:
         st.markdown('<div class="label-spacer"></div>', unsafe_allow_html=True)
-        # Bez zeleného wrapperu: copy tlačítko má být bílé jako Streamlit default
         copy_button_component(st.session_state.p_text)
 
 # --- 3) VÝSLEDKY + URL ---
