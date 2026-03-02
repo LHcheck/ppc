@@ -13,7 +13,7 @@ LABEL_MARGIN_BOTTOM_PX = 8
 LABEL_OFFSET_PX = LABEL_HEIGHT_PX + LABEL_MARGIN_BOTTOM_PX  # 33px
 
 # Kolik px posunout copy tlačítko nahoru (zmenší spacer)
-COPY_ALIGN_NUDGE_PX = 10  # když bude potřeba ještě výš, dej třeba 10-12
+COPY_ALIGN_NUDGE_PX = 12  # když bude potřeba ještě výš, dej třeba 10-12
 
 st.set_page_config(layout="wide", page_title=PAGE_TITLE)
 
