@@ -8,20 +8,28 @@ st.set_page_config(layout="wide", page_title="PPC Studio")
 # --- FINÁLNÍ STYLING PRO PERFEKTNÍ SYMETRII ---
 st.markdown("""
 <style>
-    /* 0) ZÁKLAD: zrušení červeného focus borderu (Streamlit theme) */
+    /* 1) ODSTRANĚNÍ ČERVENÉHO FOCUS BORDERU (Streamlit/BaseWeb) */
     .stTextArea textarea:focus,
     .stTextInput input:focus {
         outline: none !important;
         box-shadow: none !important;
-        border-color: #ced4da !important; /* neutrální */
-    }
-    /* Streamlit často styluje i BaseWeb wrapper přes focus-within */
-    div[data-baseweb="base-input"]:focus-within {
-        box-shadow: none !important;
-        border-color: #ced4da !important; /* neutrální */
+        border: 1px solid #ced4da !important;  /* neutrální */
     }
 
-    /* 1. JEDNOTNÁ VÝŠKA A PÍSMO */
+    /* BaseWeb wrapper - Streamlit často kreslí border/box-shadow tady */
+    div[data-baseweb="base-input"]:focus-within,
+    div[data-baseweb="textarea"]:focus-within {
+        outline: none !important;
+        box-shadow: none !important;
+        border-color: #ced4da !important;       /* neutrální */
+    }
+
+    /* Některé verze Streamlitu dávají focus stín přes tento wrapper */
+    div[data-baseweb="base-input"] {
+        box-shadow: none !important;
+    }
+
+    /* 2) JEDNOTNÁ VÝŠKA A PÍSMO */
     .stTextArea textarea, .stTextInput input {
         height: 120px !important;
         min-height: 120px !important;
@@ -29,7 +37,7 @@ st.markdown("""
         font-size: 16px !important;
     }
 
-    /* 2. SROVNÁNÍ LABELŮ (NADPISŮ POLÍ) */
+    /* 3) SROVNÁNÍ LABELŮ (NADPISŮ POLÍ) */
     div[data-testid="column"] label {
         height: 25px !important;
         display: flex !important;
@@ -37,28 +45,32 @@ st.markdown("""
         margin-bottom: 8px !important;
     }
 
-    /* 3. AKTIVNÍ ZELENÝ KROK (SEMAFOR) */
+    /* 4) AKTIVNÍ ZELENÝ KROK (SEMAFOR) */
     .step-active div[data-baseweb="base-input"],
+    .step-active div[data-baseweb="textarea"],
     .step-active textarea,
     .step-active input {
         background-color: #e8f5e9 !important;
         border: 2px solid #28a745 !important;
+        box-shadow: none !important;
     }
 
-    /* aby step-active nepřepsal focus do červené */
+    /* Step-active focus musí zůstat zelený (a žádný červený/box-shadow) */
     .step-active textarea:focus,
     .step-active input:focus {
         outline: none !important;
         box-shadow: none !important;
         border: 2px solid #28a745 !important;
     }
-    .step-active div[data-baseweb="base-input"]:focus-within {
+    .step-active div[data-baseweb="base-input"]:focus-within,
+    .step-active div[data-baseweb="textarea"]:focus-within {
+        outline: none !important;
         box-shadow: none !important;
         border-color: #28a745 !important;
         border-width: 2px !important;
     }
 
-    /* 4. TLAČÍTKA */
+    /* 5) TLAČÍTKA */
     div.stButton > button {
         width: 100%;
         height: 3.5em;
@@ -71,15 +83,6 @@ st.markdown("""
         border: none !important;
     }
 
-    /* 5. PROMPT BOX (už nepoužíváme full-width box, nechávám jen kdyby ses k tomu vrátila) */
-    .prompt-box {
-        background: #f8f9fa;
-        border: 2px solid #dee2e6;
-        padding: 15px;
-        border-radius: 10px;
-        font-weight: bold;
-        margin-bottom: 10px;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -93,7 +96,6 @@ if "step" not in st.session_state:
 c1, c2 = st.columns(2)
 
 br_val = st.session_state.get("br", "").strip()
-usps_val = st.session_state.get("usps_in", "").strip()
 
 with c1:
     # Zelená, pokud je prázdno
@@ -103,8 +105,7 @@ with c1:
     st.markdown('</div>', unsafe_allow_html=True)
 
 with c2:
-    # ✅ OPRAVA 1: stejný wrapper jako u briefu (kvůli úplně stejné výšce / zarovnání)
-    # (třída je prázdná – jde o to mít identickou DOM strukturu)
+    # wrapper kvůli identické DOM struktuře (zarovnání)
     st.markdown('<div class="">', unsafe_allow_html=True)
     st.text_area("USPs (volitelné)", key="usps_in")
     st.markdown('</div>', unsafe_allow_html=True)
@@ -127,13 +128,11 @@ if st.button("Vygenerovat prompt"):
 
 st.markdown('</div>', unsafe_allow_html=True)
 
-# --- 2. KROK: PROMPT (stejné rozměry jako Brief/USPs) + KOPÍROVÁNÍ ---
+# --- 2. KROK: PROMPT + KOPÍROVÁNÍ ---
 if "p_text" in st.session_state:
-    # ✅ OPRAVA 3: prompt zobrazit jako text_area ve sloupci (ne full-width HTML box)
     p1, p2 = st.columns(2)
 
     with p1:
-        # text_area přebírá stejnou výšku 120px z CSS
         st.text_area(
             "Prompt (zkopírujte do AI)",
             value=st.session_state.p_text,
@@ -142,11 +141,13 @@ if "p_text" in st.session_state:
         )
 
     with p2:
+        # ✅ OPRAVA 2: posun tlačítka dolů o výšku labelu + margin (25 + 8 = 33px)
+        st.markdown('<div style="height:33px"></div>', unsafe_allow_html=True)
+
         btn_cp_cl = "active-btn" if st.session_state.step == 2 else ""
         st.markdown(f'<div class="{btn_cp_cl}">', unsafe_allow_html=True)
 
         if st.button("📋 Zkopírovat prompt"):
-            # bezpečné kopírování i pro znaky ` (backtick)
             safe_text = st.session_state.p_text.replace("`", "\\`")
             st.components.v1.html(
                 f"<script>navigator.clipboard.writeText(`{safe_text}`);</script>",
@@ -192,5 +193,8 @@ if st.session_state.step >= 3:
 if st.session_state.get("step") == 4:
     st.subheader("📊 Hotové inzeráty")
     df = st.session_state.df_final
-    df["Zbývá"] = df.apply(lambda r: (30 if r["Typ"] == "Nadpis" else 90) - len(str(r["Text"])), axis=1)
+    df["Zbývá"] = df.apply(
+        lambda r: (30 if r["Typ"] == "Nadpis" else 90) - len(str(r["Text"])),
+        axis=1
+    )
     st.data_editor(df, use_container_width=True, hide_index=True)
