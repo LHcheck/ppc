@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from st_copy import copy_button  # st-copy komponenta [4](https://www.mostlypython.com/deploying-simple-streamlit-apps/)[5](https://streamlit.io/)
 
 # =============================
 # Konfigurace
@@ -15,17 +16,16 @@ HEADLINE_LIMIT = 30
 DESC_LIMIT = 90
 HEADLINE_COUNT = 15
 DESC_COUNT = 4
-TOTAL_LINES = HEADLINE_COUNT + DESC_COUNT  # 19
 
 st.set_page_config(layout="wide", page_title=PAGE_TITLE)
 
 # =============================
-# CSS (jedno místo, čistě)
+# CSS (sjednocené)
 # =============================
 st.markdown(
     f"""
     <style>
-      /* --- jednotné textarea --- */
+      /* Jednotné textarea */
       .stTextArea textarea {{
         height: {TEXTAREA_HEIGHT_PX}px !important;
         min-height: {TEXTAREA_HEIGHT_PX}px !important;
@@ -36,7 +36,7 @@ st.markdown(
         font-size: 16px !important;
       }}
 
-      /* --- zarovnání labelů ve sloupcích --- */
+      /* Zarovnání labelů ve sloupcích */
       div[data-testid="column"] label {{
         height: {LABEL_HEIGHT_PX}px !important;
         display: flex !important;
@@ -44,13 +44,12 @@ st.markdown(
         margin-bottom: {LABEL_MARGIN_BOTTOM_PX}px !important;
       }}
 
-      /* --- odstranění červeného focus borderu (robustně pro BaseWeb) --- */
+      /* Odstranění červeného focus borderu (robustní pro BaseWeb) */
       textarea:focus, textarea:focus-visible,
       input:focus, input:focus-visible {{
         outline: none !important;
         box-shadow: none !important;
       }}
-
       div[data-baseweb="base-input"]:focus-within,
       div[data-baseweb="textarea"]:focus-within,
       div[data-baseweb="input"]:focus-within,
@@ -59,20 +58,18 @@ st.markdown(
         box-shadow: none !important;
         border-color: #ced4da !important;
       }}
-
       div[data-baseweb="base-input"]:focus-within > div,
       div[data-baseweb="textarea"]:focus-within > div {{
         outline: none !important;
         box-shadow: none !important;
         border-color: #ced4da !important;
       }}
-
       div[data-baseweb="base-input"],
       div[data-baseweb="textarea"] {{
         box-shadow: none !important;
       }}
 
-      /* --- semafor: aktivní krok --- */
+      /* Semafor: aktivní krok */
       .step-active div[data-baseweb="base-input"],
       .step-active div[data-baseweb="textarea"],
       .step-active textarea,
@@ -82,14 +79,13 @@ st.markdown(
         box-shadow: none !important;
       }}
 
-      /* --- tlačítka --- */
+      /* Tlačítka */
       div.stButton > button {{
         width: 100%;
         height: 3.5em;
         font-weight: 700;
         border-radius: 8px;
       }}
-
       .active-btn button {{
         background-color: #28a745 !important;
         color: white !important;
@@ -101,65 +97,51 @@ st.markdown(
 )
 
 # =============================
-# Helpery (sjednocení komponent)
+# Helpery
 # =============================
 def wrap(css_class: str, render_fn):
-    """Obalí libovolný Streamlit prvek do divu pro styling (step-active/active-btn)."""
     st.markdown(f'<div class="{css_class}">', unsafe_allow_html=True)
     render_fn()
     st.markdown("</div>", unsafe_allow_html=True)
 
-def is_filled(key: str) -> bool:
+def filled(key: str) -> bool:
     return bool(st.session_state.get(key, "").strip())
-
-def parse_lines(text: str):
-    return [l.strip() for l in (text or "").split("\n") if l.strip()]
-
-def build_ads_df(lines):
-    data = [{"Typ": "Nadpis" if i < HEADLINE_COUNT else "Popis", "Text": t} for i, t in enumerate(lines)]
-    df = pd.DataFrame(data)
-    df["Zbývá"] = df.apply(
-        lambda r: (HEADLINE_LIMIT if r["Typ"] == "Nadpis" else DESC_LIMIT) - len(str(r["Text"])),
-        axis=1
-    )
-    return df
-
 
 # =============================
 # UI
 # =============================
 st.title(APP_TITLE)
 
-# stav
 if "step" not in st.session_state:
     st.session_state.step = 1
 
 # -------------------------------------------------
-# 1) BRIEF + USPs (sjednoceně text_area + stejná výška)
+# 1) BRIEF + USPs
 # -------------------------------------------------
 c1, c2 = st.columns(2)
 
 with c1:
-    wrap("step-active" if not is_filled("br") else "", lambda: st.text_area(
+    wrap("step-active" if not filled("br") else "", lambda: st.text_area(
         "Vložte brief nebo obsah stránky",
-        key="br"
+        key="br",
+        height=TEXTAREA_HEIGHT_PX,
     ))
 
 with c2:
-    # USPs sjednocené: také text_area se stejnou výškou
     wrap("", lambda: st.text_area(
         "USPs (volitelné)",
-        key="usps_in"
+        key="usps_in",
+        height=TEXTAREA_HEIGHT_PX,
     ))
 
 # -------------------------------------------------
-# Tlačítko: generovat prompt
+# Tlačítko: Vygenerovat prompt
 # -------------------------------------------------
-can_generate = is_filled("br") and st.session_state.step == 1
+can_generate = filled("br") and st.session_state.step == 1
 wrap("active-btn" if can_generate else "", lambda: None)
 
 if st.button("Vygenerovat prompt"):
-    if is_filled("br"):
+    if filled("br"):
         brief = st.session_state.br.strip()
         usps = st.session_state.usps_in.strip()
 
@@ -173,63 +155,72 @@ if st.button("Vygenerovat prompt"):
         st.rerun()
 
 # -------------------------------------------------
-# 2) PROMPT (stejný typ/rozměr jako Brief/USPs)
-# + kopírování čistě Streamlit (bez .html)
+# 2) PROMPT + COPY (jen jedno prompt pole)
+# - prompt je ve sloupci, aby měl stejnou šířku jako Brief/USPs
+# - copy je theme-aware komponenta, žádné tvoje .html [3](https://insights.codegpt.co/streamlit-git-integration-guide)[4](https://www.mostlypython.com/deploying-simple-streamlit-apps/)
+# - sekce 3 se ukáže až po úspěšném kopírování
 # -------------------------------------------------
 if "p_text" in st.session_state:
-    # Prompt box: text_area disabled -> stejná výška jako ostatní textarea
-    st.text_area(
-        "Prompt (zkopírujte do AI)",
-        value=st.session_state.p_text,
-        key="prompt_display",
-        disabled=True,
-    )
+    p_col, _ = st.columns(2)
 
-    # Kopírování bez HTML: code block (většina verzí má copy ikonku)
-    with st.expander("Kopírovat prompt"):
-        st.code(st.session_state.p_text, language=None)
-        st.caption("Tip: Použijte ikonu kopírování u code bloku (vpravo nahoře).")
+    with p_col:
+        st.text_area(
+            "Prompt (zkopírujte do AI)",
+            value=st.session_state.p_text,
+            key="prompt_display",
+            height=TEXTAREA_HEIGHT_PX,
+            disabled=True,
+        )
 
-    # Po vygenerování promptu už může pokračovat část 3
-    st.session_state.step = max(st.session_state.step, 3)
+        copied = copy_button(
+            st.session_state.p_text,
+            tooltip="Zkopírovat prompt",
+            copied_label="Copied",
+            icon="st",          # Streamlit‑style ikona [4](https://www.mostlypython.com/deploying-simple-streamlit-apps/)[5](https://streamlit.io/)
+            key="copy_prompt",
+        )
+
+        # copy_button vrací True/False/None; po úspěchu přepneme step [4](https://www.mostlypython.com/deploying-simple-streamlit-apps/)
+        if copied is True:
+            st.session_state.step = 3
+            st.rerun()
+        elif copied is False:
+            st.warning("Kopírování selhalo (omezení prohlížeče / clipboard). Zkuste to znovu.")
 
 # -------------------------------------------------
-# 3) VÝSLEDKY + URL (sjednoceně)
+# 3) VÝSLEDKY + URL (až po kopírování promptu)
 # -------------------------------------------------
 if st.session_state.step >= 3:
     st.divider()
 
-    # AI výstup (textarea stejné výšky)
-    wrap("step-active" if not is_filled("ai_in") else "", lambda: st.text_area(
+    wrap("step-active" if not filled("ai_in") else "", lambda: st.text_area(
         "Sem vložte vygenerované inzeráty",
-        key="ai_in"
+        key="ai_in",
+        height=TEXTAREA_HEIGHT_PX,
     ))
 
-    # URL (text_input)
-    ai_ok = is_filled("ai_in")
-    wrap("step-active" if (ai_ok and not is_filled("url_in")) else "", lambda: st.text_input(
+    ai_ok = filled("ai_in")
+    wrap("step-active" if (ai_ok and not filled("url_in")) else "", lambda: st.text_input(
         "URL webu (Povinné)",
         placeholder="https://www.priklad.cz",
-        key="url_in"
+        key="url_in",
     ))
 
-    if ai_ok and not is_filled("url_in"):
+    if ai_ok and not filled("url_in"):
         st.warning("⚠️ Zbývá poslední krok: Vyplňte URL webu.")
 
-    # -------------------------------------------------
-    # Tlačítko: zpracovat finální inzeráty
-    # -------------------------------------------------
-    if ai_ok and is_filled("url_in"):
+    if ai_ok and filled("url_in"):
         wrap("active-btn", lambda: None)
 
         if st.button("✨ Zpracovat finální inzeráty"):
-            lines = parse_lines(st.session_state.ai_in)
-
-            # volitelná validace počtu řádků – nechávám jemně (bez blokace)
-            if len(lines) < TOTAL_LINES:
-                st.warning(f"⚠️ Našla jsem jen {len(lines)} řádků, očekává se {TOTAL_LINES} (15 nadpisů + 4 popisy). "
-                           "I tak pokračuji, ale zkontrolujte výstup.")
-            st.session_state.df_final = build_ads_df(lines)
+            lines = [l.strip() for l in st.session_state.ai_in.split("\n") if l.strip()]
+            data = [{"Typ": "Nadpis" if i < HEADLINE_COUNT else "Popis", "Text": t} for i, t in enumerate(lines)]
+            df = pd.DataFrame(data)
+            df["Zbývá"] = df.apply(
+                lambda r: (HEADLINE_LIMIT if r["Typ"] == "Nadpis" else DESC_LIMIT) - len(str(r["Text"])),
+                axis=1
+            )
+            st.session_state.df_final = df
             st.session_state.step = 4
             st.rerun()
 
