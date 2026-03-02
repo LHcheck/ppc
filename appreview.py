@@ -73,7 +73,7 @@ st.markdown(
       /* Streamlit tlačítka – přirozená šířka */
       div.stButton > button {{
           height: 3.5em;
-          font-weight: 700;
+          font-weight: 400;
           border-radius: 8px;
           padding: 0 14px;
       }}
@@ -138,7 +138,7 @@ def copy_button_component(text: str):
               line-height: 1;
               width: auto;
               height: 3.5em;
-              font-weight: 700;
+              font-weight: 400;
               border-radius: 8px;
               background: #ffffff;
               color: inherit;
