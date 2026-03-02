@@ -6,7 +6,21 @@ import random
 st.set_page_config(layout="wide", page_title="PPC Studio")
 
 # --- FINÁLNÍ STYLING PRO PERFEKTNÍ SYMETRII ---
-st.markdown("""<style>
+st.markdown("""
+<style>
+    /* 0) ZÁKLAD: zrušení červeného focus borderu (Streamlit theme) */
+    .stTextArea textarea:focus,
+    .stTextInput input:focus {
+        outline: none !important;
+        box-shadow: none !important;
+        border-color: #ced4da !important; /* neutrální */
+    }
+    /* Streamlit často styluje i BaseWeb wrapper přes focus-within */
+    div[data-baseweb="base-input"]:focus-within {
+        box-shadow: none !important;
+        border-color: #ced4da !important; /* neutrální */
+    }
+
     /* 1. JEDNOTNÁ VÝŠKA A PÍSMO */
     .stTextArea textarea, .stTextInput input {
         height: 120px !important;
@@ -24,11 +38,24 @@ st.markdown("""<style>
     }
 
     /* 3. AKTIVNÍ ZELENÝ KROK (SEMAFOR) */
-    .step-active div[data-baseweb="base-input"], 
-    .step-active textarea, 
+    .step-active div[data-baseweb="base-input"],
+    .step-active textarea,
     .step-active input {
         background-color: #e8f5e9 !important;
         border: 2px solid #28a745 !important;
+    }
+
+    /* aby step-active nepřepsal focus do červené */
+    .step-active textarea:focus,
+    .step-active input:focus {
+        outline: none !important;
+        box-shadow: none !important;
+        border: 2px solid #28a745 !important;
+    }
+    .step-active div[data-baseweb="base-input"]:focus-within {
+        box-shadow: none !important;
+        border-color: #28a745 !important;
+        border-width: 2px !important;
     }
 
     /* 4. TLAČÍTKA */
@@ -44,7 +71,7 @@ st.markdown("""<style>
         border: none !important;
     }
 
-    /* 5. PROMPT BOX */
+    /* 5. PROMPT BOX (už nepoužíváme full-width box, nechávám jen kdyby ses k tomu vrátila) */
     .prompt-box {
         background: #f8f9fa;
         border: 2px solid #dee2e6;
@@ -53,7 +80,8 @@ st.markdown("""<style>
         font-weight: bold;
         margin-bottom: 10px;
     }
-</style>""", unsafe_allow_html=True)
+</style>
+""", unsafe_allow_html=True)
 
 st.title("🦁 PPC Studio")
 
@@ -63,7 +91,9 @@ if "step" not in st.session_state:
 
 # --- 1. KROK: BRIEF A USPs ---
 c1, c2 = st.columns(2)
+
 br_val = st.session_state.get("br", "").strip()
+usps_val = st.session_state.get("usps_in", "").strip()
 
 with c1:
     # Zelená, pokud je prázdno
@@ -73,8 +103,11 @@ with c1:
     st.markdown('</div>', unsafe_allow_html=True)
 
 with c2:
-    # ✅ OPRAVA: USPs jako text_area (stejné rozměry i výška jako brief)
+    # ✅ OPRAVA 1: stejný wrapper jako u briefu (kvůli úplně stejné výšce / zarovnání)
+    # (třída je prázdná – jde o to mít identickou DOM strukturu)
+    st.markdown('<div class="">', unsafe_allow_html=True)
     st.text_area("USPs (volitelné)", key="usps_in")
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # Generování promptu
 can_gen = br_val != "" and st.session_state.step == 1
@@ -83,41 +116,53 @@ st.markdown(f'<div class="{btn_p_cl}">', unsafe_allow_html=True)
 
 if st.button("Vygenerovat prompt"):
     if br_val:
-        # PŮVODNÍ PROMPT S "NEJLEPŠÍM COPYWRITEREM"
         st.session_state.p_text = (
-            f"Jsi nejlepší PPC copywriter. Vytvoř RSA (15 nadpisů, 4 popisky). "
-            f"STRIKTNĚ: Nadpis max 30 znaků, Popis max 90 znaků. "
-            f"Generuj pouze čistý text bez číslování. "
-            f"Brief: {brief}. USPs: {st.session_state.usps_in}."
+            "Jsi nejlepší PPC copywriter. Vytvoř RSA (15 nadpisů, 4 popisky). "
+            "STRIKTNĚ: Nadpis max 30 znaků, Popis max 90 znaků. "
+            "Generuj pouze čistý text bez číslování. "
+            f"Brief: {st.session_state.br}. USPs: {st.session_state.usps_in}."
         )
         st.session_state.step = 2
         st.rerun()
 
 st.markdown('</div>', unsafe_allow_html=True)
 
-# --- 2. KROK: KOPÍROVÁNÍ ---
+# --- 2. KROK: PROMPT (stejné rozměry jako Brief/USPs) + KOPÍROVÁNÍ ---
 if "p_text" in st.session_state:
-    st.markdown(f'<div class="prompt-box">{st.session_state.p_text}</div>', unsafe_allow_html=True)
-    
-    btn_cp_cl = "active-btn" if st.session_state.step == 2 else ""
-    st.markdown(f'<div class="{btn_cp_cl}">', unsafe_allow_html=True)
+    # ✅ OPRAVA 3: prompt zobrazit jako text_area ve sloupci (ne full-width HTML box)
+    p1, p2 = st.columns(2)
 
-    if st.button("📋 Zkopírovat prompt"):
-        st.components.v1.html(
-            f"<script>navigator.clipboard.writeText(`{st.session_state.p_text}`);</script>",
-            height=0
+    with p1:
+        # text_area přebírá stejnou výšku 120px z CSS
+        st.text_area(
+            "Prompt (zkopírujte do AI)",
+            value=st.session_state.p_text,
+            key="prompt_display",
+            disabled=True
         )
-        st.session_state.step = 3
-        st.rerun()
 
-    st.markdown('</div>', unsafe_allow_html=True)
+    with p2:
+        btn_cp_cl = "active-btn" if st.session_state.step == 2 else ""
+        st.markdown(f'<div class="{btn_cp_cl}">', unsafe_allow_html=True)
+
+        if st.button("📋 Zkopírovat prompt"):
+            # bezpečné kopírování i pro znaky ` (backtick)
+            safe_text = st.session_state.p_text.replace("`", "\\`")
+            st.components.v1.html(
+                f"<script>navigator.clipboard.writeText(`{safe_text}`);</script>",
+                height=0
+            )
+            st.session_state.step = 3
+            st.rerun()
+
+        st.markdown('</div>', unsafe_allow_html=True)
 
 # --- 3. KROK: VÝSLEDKY A URL ---
 if st.session_state.step >= 3:
     st.divider()
     ai_val = st.session_state.get("ai_in", "").strip()
     url_val = st.session_state.get("url_in", "").strip()
-    
+
     # Inzeráty z Gemini
     cl_ai = "step-active" if not ai_val else ""
     st.markdown(f'<div class="{cl_ai}">', unsafe_allow_html=True)
@@ -147,5 +192,5 @@ if st.session_state.step >= 3:
 if st.session_state.get("step") == 4:
     st.subheader("📊 Hotové inzeráty")
     df = st.session_state.df_final
-    df["Zbývá"] = df.apply(lambda r: (30 if r["Typ"]=="Nadpis" else 90) - len(str(r["Text"])), axis=1)
+    df["Zbývá"] = df.apply(lambda r: (30 if r["Typ"] == "Nadpis" else 90) - len(str(r["Text"])), axis=1)
     st.data_editor(df, use_container_width=True, hide_index=True)
