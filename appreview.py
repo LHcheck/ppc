@@ -11,9 +11,7 @@ TEXTAREA_HEIGHT_PX = 120
 LABEL_HEIGHT_PX = 25
 LABEL_MARGIN_BOTTOM_PX = 8
 LABEL_OFFSET_PX = LABEL_HEIGHT_PX + LABEL_MARGIN_BOTTOM_PX  # 33px
-
-# Kolik px posunout copy tlačítko nahoru (zmenší spacer)
-COPY_ALIGN_NUDGE_PX = 12  # když bude potřeba ještě výš, dej třeba 10-12
+COPY_ALIGN_NUDGE_PX = 12  # posun copy tlačítka nahoru (zmenšení spaceru)
 
 st.set_page_config(layout="wide", page_title=PAGE_TITLE)
 
@@ -73,12 +71,12 @@ st.markdown(
       /* Streamlit tlačítka – přirozená šířka */
       div.stButton > button {{
           height: 3.5em;
-          font-weight: 400;
+          font-weight: 700;
           border-radius: 8px;
           padding: 0 14px;
       }}
 
-      /* Aktivní zelené tlačítko (jen pro tlačítka, která obaluješ .active-btn) */
+      /* Aktivní zelené tlačítko (jen pro tlačítka obalená .active-btn) */
       .active-btn button {{
           background-color: #28a745 !important;
           color: white !important;
@@ -117,28 +115,23 @@ def _js_escape_template_literal(s: str) -> str:
 
 def copy_button_component(text: str):
     """
-    Bílé tlačítko Zkopírovat prompt:
-    - auto šířka (stejně jako Streamlit 'Vygenerovat prompt')
-    - stejné písmo (inherit)
-    - hover šednutí jako Streamlit
-    - kopírování funguje v iframe (user gesture)
-    - malé potvrzení 'Copied' pod tlačítkem
+    Copy tlačítko v HTML komponentě (iframe).
+    Pozn.: Streamlit session_state z něj nelze spolehlivě měnit, proto logiku
+    zobrazení sekcí neblokujeme na 'step == 3'.
     """
     safe = _js_escape_template_literal(text)
 
     st.components.v1.html(
         f"""
         <div style="display:flex; flex-direction:column; gap:6px; width:100%; align-items:flex-start;">
-
           <style>
-            /* V iframe si nastavíme font tak, aby odpovídal Streamlitu */
             #copyBtn {{
-              font-family: inherit, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
               font-size: 14px;
               line-height: 1;
               width: auto;
               height: 3.5em;
-              font-weight: 400;
+              font-weight: 700;
               border-radius: 8px;
               background: #ffffff;
               color: inherit;
@@ -151,26 +144,15 @@ def copy_button_component(text: str):
               white-space: nowrap;
               transition: background-color 120ms ease-in-out, border-color 120ms ease-in-out;
             }}
-
-            /* Hover efekt jako Streamlit (jemné zešednutí) */
-            #copyBtn:hover {{
-              background: #f0f2f6;
-            }}
-
-            /* Active (klik) */
-            #copyBtn:active {{
-              background: #e8eaee;
-            }}
-
-            /* Focus (bez modrého outline) */
+            #copyBtn:hover {{ background: #f0f2f6; }}
+            #copyBtn:active {{ background: #e8eaee; }}
             #copyBtn:focus {{
               outline: none;
               box-shadow: none;
               border-color: #b6bcc6;
             }}
-
             #copyStatus {{
-              font-family: inherit, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
               font-size: 12px;
               min-height: 16px;
               color: #6b7280;
@@ -285,12 +267,13 @@ if "p_text" in st.session_state:
         )
 
     with p2:
-        # posun copy tlačítka výš (zarovnání s horní hranou fieldu)
         st.markdown('<div class="label-spacer"></div>', unsafe_allow_html=True)
         copy_button_component(st.session_state.p_text)
 
 # --- 3) VÝSLEDKY + URL ---
-if st.session_state.step >= 3:
+# ✅ FIX: nezáviset na step==3 (iframe copy nemůže posunout step)
+# Zobrazíme sekci 3 už od kroku 2 (když je prompt připravený).
+if st.session_state.step >= 2:
     st.divider()
 
     ai_val = st.session_state.get("ai_in", "").strip()
