@@ -12,6 +12,8 @@ LABEL_HEIGHT_PX = 25
 LABEL_MARGIN_BOTTOM_PX = 8
 LABEL_OFFSET_PX = LABEL_HEIGHT_PX + LABEL_MARGIN_BOTTOM_PX  # zarovnání tlačítka vpravo
 
+SHOW_CODE_COPY_FALLBACK = True  # když True, zobrazí se i st.code s vestavěným kopírováním
+
 st.set_page_config(layout="wide", page_title=PAGE_TITLE)
 
 # -----------------------------
@@ -99,20 +101,42 @@ def wrap_div(css_class: str, inner_fn):
     st.markdown("</div>", unsafe_allow_html=True)
 
 
-def copy_to_clipboard(text: str):
+def copy_component(text: str):
     """
-    Zkopíruje text do schránky.
-    - Primárně přes navigator.clipboard.writeText (moderní prohlížeče)
-    - Fallback přes hidden textarea + document.execCommand('copy')
+    Vykreslí HTML komponent s vlastním tlačítkem, které kopíruje přímo v JS (user gesture).
+    Zobrazí "Copied" nebo chybu přímo u tlačítka.
     """
-    # escape pro JS string
-    safe = (text or "").replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
+    # Escape pro vložení do JS stringu (bezpečně)
+    safe = (
+        (text or "")
+        .replace("\\", "\\\\")
+        .replace("`", "\\`")
+        .replace("${", "\\${")
+        .replace("</script>", "<\\/script>")
+    )
 
     st.components.v1.html(
         f"""
+        <div style="display:flex; flex-direction:column; gap:8px; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;">
+          <button id="copyBtn"
+                  style="
+                    width:100%;
+                    height:3.5em;
+                    font-weight:700;
+                    border-radius:8px;
+                    border:1px solid #d0d7de;
+                    background:#ffffff;
+                    cursor:pointer;
+                  ">
+            📋 Zkopírovat prompt
+          </button>
+          <div id="copyStatus" style="font-size:12px; color:#6b7280; min-height:16px;"></div>
+        </div>
+
         <script>
-        (function() {{
           const text = `{safe}`;
+          const btn = document.getElementById("copyBtn");
+          const status = document.getElementById("copyStatus");
 
           async function copyModern() {{
             try {{
@@ -143,17 +167,25 @@ def copy_to_clipboard(text: str):
             }}
           }}
 
-          (async () => {{
+          btn.addEventListener("click", async () => {{
+            status.textContent = "";
             const okModern = await copyModern();
-            if (!okModern) {{
-              copyFallback();
+            const ok = okModern || copyFallback();
+
+            if (ok) {{
+              status.textContent = "Copied ✅";
+              status.style.color = "#16a34a";
+              btn.style.borderColor = "#16a34a";
+            }} else {{
+              status.textContent = "Copy failed ❌ (zkuste Ctrl+C)";
+              status.style.color = "#dc2626";
+              btn.style.borderColor = "#dc2626";
             }}
-          }})();
+          }});
         </script>
         """,
-        height=0,
+        height=90,
     )
-
 
 # -----------------------------
 # UI
@@ -210,21 +242,23 @@ if "p_text" in st.session_state:
             disabled=True,
         )
 
+        # Volitelný fallback: často má vestavěné kopírování
+        if SHOW_CODE_COPY_FALLBACK:
+            st.caption("Alternativní kopie (fallback):")
+            st.code(st.session_state.p_text, language="text")
+
     with p2:
-        # Zarovnat tlačítko s horní hranou prompt pole (label + margin)
         st.markdown('<div class="label-spacer"></div>', unsafe_allow_html=True)
 
-        btn_active = "active-btn" if st.session_state.step == 2 else ""
-        wrap_div(btn_active, lambda: None)
+        # ✅ Nejspolehlivější: kopírovací komponent s vlastním tlačítkem + „Copied“
+        copy_component(st.session_state.p_text)
 
-        if st.button("📋 Zkopírovat prompt"):
-            copy_to_clipboard(st.session_state.p_text)
-            st.toast("✅ Prompt zkopírován do schránky", icon="📋")
+        # Pokud chceš stále posouvat kroky po kopírování, nechám tu malé tlačítko:
+        # (kopírování provádí komponent; tohle jen posune UI dál)
+        if st.button("➡️ Pokračovat"):
+            st.toast("Copied", icon="✅")
             st.session_state.step = 3
             st.rerun()
-
-        # zavři wrapper tlačítka "Zkopírovat prompt"
-        st.markdown("</div>", unsafe_allow_html=True)
 
 # --- 3) VÝSLEDKY + URL ---
 if st.session_state.step >= 3:
@@ -256,7 +290,6 @@ if st.session_state.step >= 3:
             st.session_state.step = 4
             st.rerun()
 
-        # zavři wrapper tlačítka "Zpracovat"
         st.markdown("</div>", unsafe_allow_html=True)
 
 # --- 4) FINÁLNÍ TABULKA ---
@@ -267,5 +300,3 @@ if st.session_state.get("step") == 4 and "df_final" in st.session_state:
     df["Zbývá"] = df.apply(
         lambda r: (30 if r["Typ"] == "Nadpis" else 90) - len(str(r["Text"])),
         axis=1,
-    )
-    st.data_editor(df, use_container_width=True, hide_index=True)
