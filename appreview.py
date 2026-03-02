@@ -1,4 +1,7 @@
-import streamlit as st, pandas as pd, io, random
+import streamlit as st
+import pandas as pd
+import io
+import random
 
 st.set_page_config(layout="wide", page_title="PPC Studio")
 
@@ -55,7 +58,8 @@ st.markdown("""<style>
 st.title("🦁 PPC Studio")
 
 # Inicializace stavu
-if "step" not in st.session_state: st.session_state.step = 1
+if "step" not in st.session_state:
+    st.session_state.step = 1
 
 # --- 1. KROK: BRIEF A USPs ---
 c1, c2 = st.columns(2)
@@ -69,13 +73,14 @@ with c1:
     st.markdown('</div>', unsafe_allow_html=True)
 
 with c2:
-    # USPs (volitelné, šedé)
-    st.text_input("USPs (volitelné)", key="usps_in")
+    # ✅ OPRAVA: USPs jako text_area (stejné rozměry i výška jako brief)
+    st.text_area("USPs (volitelné)", key="usps_in")
 
 # Generování promptu
 can_gen = br_val != "" and st.session_state.step == 1
 btn_p_cl = "active-btn" if can_gen else ""
 st.markdown(f'<div class="{btn_p_cl}">', unsafe_allow_html=True)
+
 if st.button("Vygenerovat prompt"):
     if br_val:
         # PŮVODNÍ PROMPT S "NEJLEPŠÍM COPYWRITEREM"
@@ -87,6 +92,7 @@ if st.button("Vygenerovat prompt"):
         )
         st.session_state.step = 2
         st.rerun()
+
 st.markdown('</div>', unsafe_allow_html=True)
 
 # --- 2. KROK: KOPÍROVÁNÍ ---
@@ -95,10 +101,15 @@ if "p_text" in st.session_state:
     
     btn_cp_cl = "active-btn" if st.session_state.step == 2 else ""
     st.markdown(f'<div class="{btn_cp_cl}">', unsafe_allow_html=True)
+
     if st.button("📋 Zkopírovat prompt"):
-        st.components.v1.html(f"<script>navigator.clipboard.writeText(`{st.session_state.p_text}`);</script>", height=0)
+        st.components.v1.html(
+            f"<script>navigator.clipboard.writeText(`{st.session_state.p_text}`);</script>",
+            height=0
+        )
         st.session_state.step = 3
         st.rerun()
+
     st.markdown('</div>', unsafe_allow_html=True)
 
 # --- 3. KROK: VÝSLEDKY A URL ---
