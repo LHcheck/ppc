@@ -10,9 +10,10 @@ PAGE_TITLE = "PPC Studio"
 TEXTAREA_HEIGHT_PX = 120
 LABEL_HEIGHT_PX = 25
 LABEL_MARGIN_BOTTOM_PX = 8
-LABEL_OFFSET_PX = LABEL_HEIGHT_PX + LABEL_MARGIN_BOTTOM_PX
+LABEL_OFFSET_PX = LABEL_HEIGHT_PX + LABEL_MARGIN_BOTTOM_PX  # zarovnání tlačítka vpravo
 
 st.set_page_config(layout="wide", page_title=PAGE_TITLE)
+
 
 # -----------------------------
 # CSS
@@ -67,7 +68,7 @@ st.markdown(
           box-shadow: none !important;
       }}
 
-      /* Tlačítka (původní Streamlit styl) */
+      /* Tlačítka – stejné rozměry */
       div.stButton > button {{
           width: 100%;
           height: 3.5em;
@@ -75,7 +76,7 @@ st.markdown(
           border-radius: 8px;
       }}
 
-      /* "Active" zelené tlačítko */
+      /* Aktivní zelené tlačítko */
       .active-btn button {{
           background-color: #28a745 !important;
           color: white !important;
@@ -91,29 +92,41 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+
 # -----------------------------
 # Helpery
 # -----------------------------
 def wrap_div(css_class: str, inner_fn):
+    """Obalí blok do <div class="..."> pro styling (step-active / active-btn)."""
     st.markdown(f'<div class="{css_class}">', unsafe_allow_html=True)
     inner_fn()
     st.markdown("</div>", unsafe_allow_html=True)
 
 
-def copy_button_component(text: str):
+def _js_escape_template_literal(s: str) -> str:
     """
-    Jediné tlačítko 'Zkopírovat prompt' (bez dalších sekcí).
-    ✅ Tlačítko je nastylované PŘÍMO uvnitř komponenty (iframe),
-    takže má stejné rozměry jako Streamlit tlačítko 'Vygenerovat prompt'.
-    Zobrazí potvrzení 'Copied' pod tlačítkem.
+    Bezpečné vložení textu do JS template literal `...`:
+    - escapuje backslash, backtick
+    - zamezí ${...} interpolaci
+    - ošetří </script>
     """
-    safe = (
-        (text or "")
+    return (
+        (s or "")
         .replace("\\", "\\\\")
         .replace("`", "\\`")
         .replace("${", "\\${")
         .replace("</script>", "<\\/script>")
     )
+
+
+def copy_button_component(text: str):
+    """
+    Jediné tlačítko 'Zkopírovat prompt' v HTML komponentě (iframe),
+    aby kopírování fungovalo jako přímé user-gesture.
+    Tlačítko má stejné rozměry jako Streamlit button (width 100%, height 3.5em).
+    Zobrazí potvrzení 'Copied' pod tlačítkem.
+    """
+    safe = _js_escape_template_literal(text)
 
     st.components.v1.html(
         f"""
@@ -121,10 +134,10 @@ def copy_button_component(text: str):
           <button id="copyBtn"
             style="
               width: 100%;
-              height: 3.5em;        /* STEJNÉ jako Streamlit button */
-              font-weight: 700;     /* bold */
-              border-radius: 8px;   /* STEJNÉ jako Streamlit button */
-              background: #28a745;  /* zelené jako active-btn */
+              height: 3.5em;
+              font-weight: 700;
+              border-radius: 8px;
+              background: #28a745;
               color: white;
               border: none;
               cursor: pointer;
@@ -184,8 +197,9 @@ def copy_button_component(text: str):
           }});
         </script>
         """,
-        height=92,  # aby se vešlo tlačítko (3.5em) + "Copied"
+        height=92,
     )
+
 
 # -----------------------------
 # UI
@@ -226,9 +240,6 @@ if st.button("Vygenerovat prompt"):
         st.session_state.step = 2
         st.rerun()
 
-# Zavření wrapperu tlačítka
-st.markdown("</div>", unsafe_allow_html=True)
-
 # --- 2) PROMPT + COPY ---
 if "p_text" in st.session_state:
     p1, p2 = st.columns(2)
@@ -243,11 +254,7 @@ if "p_text" in st.session_state:
 
     with p2:
         st.markdown('<div class="label-spacer"></div>', unsafe_allow_html=True)
-
-        # Zelený wrapper jen pro vizuální konzistenci okolí (neovlivní iframe)
-        st.markdown('<div class="active-btn">', unsafe_allow_html=True)
         copy_button_component(st.session_state.p_text)
-        st.markdown("</div>", unsafe_allow_html=True)
 
 # --- 3) VÝSLEDKY + URL ---
 if st.session_state.step >= 3:
@@ -278,8 +285,6 @@ if st.session_state.step >= 3:
             st.session_state.df_final = pd.DataFrame(data)
             st.session_state.step = 4
             st.rerun()
-
-        st.markdown("</div>", unsafe_allow_html=True)
 
 # --- 4) FINÁLNÍ TABULKA ---
 if st.session_state.get("step") == 4 and "df_final" in st.session_state:
