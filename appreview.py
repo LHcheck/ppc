@@ -300,3 +300,5 @@ if st.session_state.get("step") == 4 and "df_final" in st.session_state:
     df["Zbývá"] = df.apply(
         lambda r: (30 if r["Typ"] == "Nadpis" else 90) - len(str(r["Text"])),
         axis=1,
+    )
+    st.data_editor(df, use_container_width=True, hide_index=True)
