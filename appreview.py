@@ -10,7 +10,10 @@ PAGE_TITLE = "PPC Studio"
 TEXTAREA_HEIGHT_PX = 120
 LABEL_HEIGHT_PX = 25
 LABEL_MARGIN_BOTTOM_PX = 8
-LABEL_OFFSET_PX = LABEL_HEIGHT_PX + LABEL_MARGIN_BOTTOM_PX  # zarovnání tlačítka vpravo
+LABEL_OFFSET_PX = LABEL_HEIGHT_PX + LABEL_MARGIN_BOTTOM_PX  # 33px
+
+# Kolik px posunout copy tlačítko nahoru (zmenší spacer)
+COPY_ALIGN_NUDGE_PX = 8  # když bude potřeba ještě výš, dej třeba 10-12
 
 st.set_page_config(layout="wide", page_title=PAGE_TITLE)
 
@@ -67,12 +70,12 @@ st.markdown(
           box-shadow: none !important;
       }}
 
-      /* Streamlit tlačítka – NEVYNUCUJEME width:100% (aby byla přirozeně úzká) */
+      /* Streamlit tlačítka – přirozená šířka */
       div.stButton > button {{
           height: 3.5em;
           font-weight: 700;
           border-radius: 8px;
-          padding: 0 14px;  /* podobné jako default */
+          padding: 0 14px;
       }}
 
       /* Aktivní zelené tlačítko (jen pro tlačítka, která obaluješ .active-btn) */
@@ -84,7 +87,7 @@ st.markdown(
 
       /* Spacer pro zarovnání copy tlačítka s prompt fieldem */
       .label-spacer {{
-          height: {LABEL_OFFSET_PX}px;
+          height: {max(LABEL_OFFSET_PX - COPY_ALIGN_NUDGE_PX, 0)}px;
       }}
     </style>
     """,
@@ -115,8 +118,9 @@ def _js_escape_template_literal(s: str) -> str:
 def copy_button_component(text: str):
     """
     Bílé tlačítko Zkopírovat prompt:
-    - šířka AUTO (ne 100%) => bude podobně úzké jako Streamlit 'Vygenerovat prompt'
-    - výška 3.5em, radius 8px, bold
+    - auto šířka (stejně jako Streamlit 'Vygenerovat prompt')
+    - stejné písmo (inherit)
+    - hover šednutí jako Streamlit
     - kopírování funguje v iframe (user gesture)
     - malé potvrzení 'Copied' pod tlačítkem
     """
@@ -125,26 +129,56 @@ def copy_button_component(text: str):
     st.components.v1.html(
         f"""
         <div style="display:flex; flex-direction:column; gap:6px; width:100%; align-items:flex-start;">
-          <button id="copyBtn"
-            style="
-              width: auto;                /* ✅ auto šířka */
-              height: 3.5em;              /* stejná výška jako Streamlit */
+
+          <style>
+            /* V iframe si nastavíme font tak, aby odpovídal Streamlitu */
+            #copyBtn {{
+              font-family: inherit, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+              font-size: 14px;
+              line-height: 1;
+              width: auto;
+              height: 3.5em;
               font-weight: 700;
               border-radius: 8px;
-              background: #ffffff;        /* bílé */
+              background: #ffffff;
               color: inherit;
               border: 1px solid #d0d7de;
-              padding: 0 14px;            /* stejné „tělo“ jako Streamlit */
+              padding: 0 14px;
               cursor: pointer;
               display: inline-flex;
               align-items: center;
               justify-content: center;
               white-space: nowrap;
-            ">
-            📋 Zkopírovat prompt
-          </button>
+              transition: background-color 120ms ease-in-out, border-color 120ms ease-in-out;
+            }}
 
-          <div id="copyStatus" style="font-size:12px; min-height:16px; color:#6b7280;"></div>
+            /* Hover efekt jako Streamlit (jemné zešednutí) */
+            #copyBtn:hover {{
+              background: #f0f2f6;
+            }}
+
+            /* Active (klik) */
+            #copyBtn:active {{
+              background: #e8eaee;
+            }}
+
+            /* Focus (bez modrého outline) */
+            #copyBtn:focus {{
+              outline: none;
+              box-shadow: none;
+              border-color: #b6bcc6;
+            }}
+
+            #copyStatus {{
+              font-family: inherit, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+              font-size: 12px;
+              min-height: 16px;
+              color: #6b7280;
+            }}
+          </style>
+
+          <button id="copyBtn">📋 Zkopírovat prompt</button>
+          <div id="copyStatus"></div>
         </div>
 
         <script>
@@ -251,6 +285,7 @@ if "p_text" in st.session_state:
         )
 
     with p2:
+        # posun copy tlačítka výš (zarovnání s horní hranou fieldu)
         st.markdown('<div class="label-spacer"></div>', unsafe_allow_html=True)
         copy_button_component(st.session_state.p_text)
 
