@@ -1,314 +1,151 @@
 import streamlit as st
 import pandas as pd
+import io
+import random
 
-# -----------------------------
-# Konfigurace
-# -----------------------------
-APP_TITLE = "🦁 PPC Studio"
-PAGE_TITLE = "PPC Studio"
+st.set_page_config(layout="wide", page_title="PPC Studio")
 
-TEXTAREA_HEIGHT_PX = 120
-LABEL_HEIGHT_PX = 25
-LABEL_MARGIN_BOTTOM_PX = 8
-LABEL_OFFSET_PX = LABEL_HEIGHT_PX + LABEL_MARGIN_BOTTOM_PX  # 33px
-COPY_ALIGN_NUDGE_PX = 12  # posun copy tlačítka nahoru (zmenšení spaceru)
+# --- FINÁLNÍ STYLING PRO PERFEKTNÍ SYMETRII ---
+st.markdown("""<style>
+    /* 1. JEDNOTNÁ VÝŠKA A PÍSMO */
+    .stTextArea textarea, .stTextInput input {
+        height: 120px !important;
+        min-height: 120px !important;
+        max-height: 120px !important;
+        font-size: 16px !important;
+    }
 
-st.set_page_config(layout="wide", page_title=PAGE_TITLE)
+    /* 2. SROVNÁNÍ LABELŮ (NADPISŮ POLÍ) */
+    div[data-testid="column"] label {
+        height: 25px !important;
+        display: flex !important;
+        align-items: center !important;
+        margin-bottom: 8px !important;
+    }
 
-# -----------------------------
-# CSS
-# -----------------------------
-st.markdown(
-    f"""
-    <style>
-      /* Jednotná výška textových polí */
-      .stTextArea textarea {{
-          height: {TEXTAREA_HEIGHT_PX}px !important;
-          min-height: {TEXTAREA_HEIGHT_PX}px !important;
-          max-height: {TEXTAREA_HEIGHT_PX}px !important;
-          font-size: 16px !important;
-      }}
-      .stTextInput input {{
-          font-size: 16px !important;
-      }}
+    /* 3. AKTIVNÍ ZELENÝ KROK (SEMAFOR) */
+    .step-active div[data-baseweb="base-input"], 
+    .step-active textarea, 
+    .step-active input {
+        background-color: #e8f5e9 !important;
+        border: 2px solid #28a745 !important;
+    }
 
-      /* Srovnání labelů ve sloupcích */
-      div[data-testid="column"] label {{
-          height: {LABEL_HEIGHT_PX}px !important;
-          display: flex !important;
-          align-items: center !important;
-          margin-bottom: {LABEL_MARGIN_BOTTOM_PX}px !important;
-      }}
+    /* 4. TLAČÍTKA */
+    div.stButton > button {
+        width: 100%;
+        height: 3.5em;
+        font-weight: bold;
+        border-radius: 8px;
+    }
+    .active-btn button {
+        background-color: #28a745 !important;
+        color: white !important;
+        border: none !important;
+    }
 
-      /* Odstranění červeného focus borderu (Streamlit/BaseWeb) */
-      .stTextArea textarea:focus,
-      .stTextInput input:focus {{
-          outline: none !important;
-          box-shadow: none !important;
-          border: 1px solid #ced4da !important;
-      }}
-      div[data-baseweb="base-input"]:focus-within,
-      div[data-baseweb="textarea"]:focus-within {{
-          outline: none !important;
-          box-shadow: none !important;
-          border-color: #ced4da !important;
-      }}
-      div[data-baseweb="base-input"],
-      div[data-baseweb="textarea"] {{
-          box-shadow: none !important;
-      }}
+    /* 5. PROMPT BOX */
+    .prompt-box {
+        background: #f8f9fa;
+        border: 2px solid #dee2e6;
+        padding: 15px;
+        border-radius: 10px;
+        font-weight: bold;
+        margin-bottom: 10px;
+    }
+</style>""", unsafe_allow_html=True)
 
-      /* Semafor: aktivní krok */
-      .step-active div[data-baseweb="base-input"],
-      .step-active div[data-baseweb="textarea"],
-      .step-active textarea,
-      .step-active input {{
-          background-color: #e8f5e9 !important;
-          border: 2px solid #28a745 !important;
-          box-shadow: none !important;
-      }}
+st.title("🦁 PPC Studio")
 
-      /* Streamlit tlačítka – přirozená šířka */
-      div.stButton > button {{
-          height: 3.5em;
-          font-weight: 700;
-          border-radius: 8px;
-          padding: 0 14px;
-      }}
-
-      /* Aktivní zelené tlačítko (jen pro tlačítka obalená .active-btn) */
-      .active-btn button {{
-          background-color: #28a745 !important;
-          color: white !important;
-          border: none !important;
-      }}
-
-      /* Spacer pro zarovnání copy tlačítka s prompt fieldem */
-      .label-spacer {{
-          height: {max(LABEL_OFFSET_PX - COPY_ALIGN_NUDGE_PX, 0)}px;
-      }}
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-# -----------------------------
-# Helpery
-# -----------------------------
-def wrap_div(css_class: str, inner_fn):
-    """Obalí blok do <div class="..."> pro styling (step-active / active-btn)."""
-    st.markdown(f'<div class="{css_class}">', unsafe_allow_html=True)
-    inner_fn()
-    st.markdown("</div>", unsafe_allow_html=True)
-
-
-def _js_escape_template_literal(s: str) -> str:
-    """Bezpečné vložení textu do JS template literálu `...`."""
-    return (
-        (s or "")
-        .replace("\\", "\\\\")
-        .replace("`", "\\`")
-        .replace("${", "\\${")
-        .replace("</script>", "<\\/script>")
-    )
-
-
-def copy_button_component(text: str):
-    """
-    Copy tlačítko v HTML komponentě (iframe).
-    Pozn.: Streamlit session_state z něj nelze spolehlivě měnit, proto logiku
-    zobrazení sekcí neblokujeme na 'step == 3'.
-    """
-    safe = _js_escape_template_literal(text)
-
-    st.components.v1.html(
-        f"""
-        <div style="display:flex; flex-direction:column; gap:6px; width:100%; align-items:flex-start;">
-          <style>
-            #copyBtn {{
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-              font-size: 14px;
-              line-height: 1;
-              width: auto;
-              height: 3.5em;
-              font-weight: 700;
-              border-radius: 8px;
-              background: #ffffff;
-              color: inherit;
-              border: 1px solid #d0d7de;
-              padding: 0 14px;
-              cursor: pointer;
-              display: inline-flex;
-              align-items: center;
-              justify-content: center;
-              white-space: nowrap;
-              transition: background-color 120ms ease-in-out, border-color 120ms ease-in-out;
-            }}
-            #copyBtn:hover {{ background: #f0f2f6; }}
-            #copyBtn:active {{ background: #e8eaee; }}
-            #copyBtn:focus {{
-              outline: none;
-              box-shadow: none;
-              border-color: #b6bcc6;
-            }}
-            #copyStatus {{
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-              font-size: 12px;
-              min-height: 16px;
-              color: #6b7280;
-            }}
-          </style>
-
-          <button id="copyBtn">📋 Zkopírovat prompt</button>
-          <div id="copyStatus"></div>
-        </div>
-
-        <script>
-          const text = `{safe}`;
-          const btn = document.getElementById("copyBtn");
-          const status = document.getElementById("copyStatus");
-
-          async function copyModern() {{
-            try {{
-              await navigator.clipboard.writeText(text);
-              return true;
-            }} catch (e) {{
-              return false;
-            }}
-          }}
-
-          function copyFallback() {{
-            try {{
-              const ta = document.createElement('textarea');
-              ta.value = text;
-              ta.setAttribute('readonly', '');
-              ta.style.position = 'fixed';
-              ta.style.top = '0';
-              ta.style.left = '0';
-              ta.style.opacity = '0';
-              document.body.appendChild(ta);
-              ta.focus();
-              ta.select();
-              const ok = document.execCommand('copy');
-              document.body.removeChild(ta);
-              return ok;
-            }} catch (e) {{
-              return false;
-            }}
-          }}
-
-          btn.addEventListener("click", async () => {{
-            status.textContent = "";
-            const okModern = await copyModern();
-            const ok = okModern || copyFallback();
-
-            if (ok) {{
-              status.textContent = "Copied";
-              status.style.color = "#16a34a";
-            }} else {{
-              status.textContent = "Copy failed";
-              status.style.color = "#dc2626";
-            }}
-          }});
-        </script>
-        """,
-        height=92,
-    )
-
-# -----------------------------
-# UI
-# -----------------------------
-st.title(APP_TITLE)
-
+# Inicializace stavu
 if "step" not in st.session_state:
     st.session_state.step = 1
 
-# --- 1) BRIEF + USPs ---
+# --- 1. KROK: BRIEF A USPs ---
 c1, c2 = st.columns(2)
-brief_val = st.session_state.get("br", "").strip()
+br_val = st.session_state.get("br", "").strip()
 
 with c1:
-    wrap_div(
-        "step-active" if not brief_val else "",
-        lambda: st.text_area("Vložte brief nebo obsah stránky", key="br"),
-    )
+    # Zelená, pokud je prázdno
+    cl_br = "step-active" if not br_val else ""
+    st.markdown(f'<div class="{cl_br}">', unsafe_allow_html=True)
+    brief = st.text_area("Vložte brief nebo obsah stránky", key="br")
+    st.markdown('</div>', unsafe_allow_html=True)
 
 with c2:
-    wrap_div(
-        "",
-        lambda: st.text_area("USPs (volitelné)", key="usps_in"),
-    )
+    # ✅ OPRAVA: USPs jako text_area (stejné rozměry i výška jako brief)
+    st.text_area("USPs (volitelné)", key="usps_in")
 
-# --- Generování promptu ---
-can_generate = (brief_val != "") and (st.session_state.step == 1)
-wrap_div("active-btn" if can_generate else "", lambda: None)
+# Generování promptu
+can_gen = br_val != "" and st.session_state.step == 1
+btn_p_cl = "active-btn" if can_gen else ""
+st.markdown(f'<div class="{btn_p_cl}">', unsafe_allow_html=True)
 
 if st.button("Vygenerovat prompt"):
-    if brief_val:
+    if br_val:
+        # PŮVODNÍ PROMPT S "NEJLEPŠÍM COPYWRITEREM"
         st.session_state.p_text = (
-            "Jsi nejlepší PPC copywriter. Vytvoř RSA (15 nadpisů, 4 popisky). "
-            "STRIKTNĚ: Nadpis max 30 znaků, Popis max 90 znaků. "
-            "Generuj pouze čistý text bez číslování. "
-            f"Brief: {st.session_state.br}. USPs: {st.session_state.usps_in}."
+            f"Jsi nejlepší PPC copywriter. Vytvoř RSA (15 nadpisů, 4 popisky). "
+            f"STRIKTNĚ: Nadpis max 30 znaků, Popis max 90 znaků. "
+            f"Generuj pouze čistý text bez číslování. "
+            f"Brief: {brief}. USPs: {st.session_state.usps_in}."
         )
         st.session_state.step = 2
         st.rerun()
 
-# --- 2) PROMPT + COPY ---
+st.markdown('</div>', unsafe_allow_html=True)
+
+# --- 2. KROK: KOPÍROVÁNÍ ---
 if "p_text" in st.session_state:
-    p1, p2 = st.columns(2)
+    st.markdown(f'<div class="prompt-box">{st.session_state.p_text}</div>', unsafe_allow_html=True)
+    
+    btn_cp_cl = "active-btn" if st.session_state.step == 2 else ""
+    st.markdown(f'<div class="{btn_cp_cl}">', unsafe_allow_html=True)
 
-    with p1:
-        st.text_area(
-            "Prompt (zkopírujte do AI)",
-            value=st.session_state.p_text,
-            key="prompt_display",
-            disabled=True,
+    if st.button("📋 Zkopírovat prompt"):
+        st.components.v1.html(
+            f"<script>navigator.clipboard.writeText(`{st.session_state.p_text}`);</script>",
+            height=0
         )
+        st.session_state.step = 3
+        st.rerun()
 
-    with p2:
-        st.markdown('<div class="label-spacer"></div>', unsafe_allow_html=True)
-        copy_button_component(st.session_state.p_text)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# --- 3) VÝSLEDKY + URL ---
-# ✅ FIX: nezáviset na step==3 (iframe copy nemůže posunout step)
-# Zobrazíme sekci 3 už od kroku 2 (když je prompt připravený).
-if st.session_state.step >= 2:
+# --- 3. KROK: VÝSLEDKY A URL ---
+if st.session_state.step >= 3:
     st.divider()
-
     ai_val = st.session_state.get("ai_in", "").strip()
     url_val = st.session_state.get("url_in", "").strip()
+    
+    # Inzeráty z Gemini
+    cl_ai = "step-active" if not ai_val else ""
+    st.markdown(f'<div class="{cl_ai}">', unsafe_allow_html=True)
+    ai_text = st.text_area("Sem vložte vygenerované inzeráty", key="ai_in")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    wrap_div(
-        "step-active" if not ai_val else "",
-        lambda: st.text_area("Sem vložte vygenerované inzeráty", key="ai_in"),
-    )
-
-    wrap_div(
-        "step-active" if (ai_val and not url_val) else "",
-        lambda: st.text_input("URL webu (Povinné)", placeholder="https://www.priklad.cz", key="url_in"),
-    )
+    # URL pole (Zelené jen když máme inzeráty, ale ne URL)
+    cl_url = "step-active" if (ai_val and not url_val) else ""
+    st.markdown(f'<div class="{cl_url}">', unsafe_allow_html=True)
+    st.text_input("URL webu (Povinné)", placeholder="https://www.priklad.cz", key="url_in")
+    st.markdown('</div>', unsafe_allow_html=True)
 
     if ai_val and not url_val:
         st.warning("⚠️ Zbývá poslední krok: Vyplňte URL webu.")
 
     if ai_val and url_val:
-        wrap_div("active-btn", lambda: None)
-
+        st.markdown('<div class="active-btn">', unsafe_allow_html=True)
         if st.button("✨ Zpracovat finální inzeráty"):
-            lines = [l.strip() for l in st.session_state.ai_in.split("\n") if l.strip()]
+            lines = [l.strip() for l in ai_text.split('\n') if l.strip()]
             data = [{"Typ": "Nadpis" if i < 15 else "Popis", "Text": t} for i, t in enumerate(lines)]
             st.session_state.df_final = pd.DataFrame(data)
             st.session_state.step = 4
             st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
-# --- 4) FINÁLNÍ TABULKA ---
-if st.session_state.get("step") == 4 and "df_final" in st.session_state:
+# --- FINÁLNÍ TABULKA ---
+if st.session_state.get("step") == 4:
     st.subheader("📊 Hotové inzeráty")
-    df = st.session_state.df_final.copy()
-
-    df["Zbývá"] = df.apply(
-        lambda r: (30 if r["Typ"] == "Nadpis" else 90) - len(str(r["Text"])),
-        axis=1,
-    )
+    df = st.session_state.df_final
+    df["Zbývá"] = df.apply(lambda r: (30 if r["Typ"]=="Nadpis" else 90) - len(str(r["Text"])), axis=1)
     st.data_editor(df, use_container_width=True, hide_index=True)
